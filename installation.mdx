@@ -1,0 +1,78 @@
+---
+title: "Install gsudo on Windows: WinGet, Scoop, Choco, MSI"
+description: "Install gsudo using WinGet, Chocolatey, Scoop, MSI, a PowerShell one-liner, or a portable ZIP — with post-install setup for PowerShell and Bash."
+---
+
+gsudo is a portable executable that adds itself to your `PATH`. There is no Windows service and no system-level change beyond that. Choose the installation method that fits your workflow below, then restart your consoles once to pick up the updated `PATH`.
+
+## Package managers
+
+If you already use a package manager, installation is a single command.
+
+<CodeGroup>
+
+```powershell WinGet
+winget install gerardog.gsudo
+```
+
+```powershell Chocolatey
+choco install gsudo
+```
+
+```powershell Scoop
+scoop install gsudo
+```
+
+</CodeGroup>
+
+<Note>
+  Restart all open console windows after installing so the updated `PATH` takes effect.
+</Note>
+
+## MSI installer
+
+Download and run the MSI directly from the [latest release](https://github.com/gerardog/gsudo/releases/latest). The installer detects your processor architecture (x64, x86, or arm64) and adds gsudo to your `PATH` automatically.
+
+## PowerShell one-liner
+
+Run this command from any console to download and install the correct MSI for your system automatically:
+
+```powershell
+PowerShell -Command "Set-ExecutionPolicy RemoteSigned -scope Process; [Net.ServicePointManager]::SecurityProtocol = 'Tls12'; iwr -useb https://raw.githubusercontent.com/gerardog/gsudo/master/installgsudo.ps1 | iex"
+```
+
+This script detects your architecture, downloads the matching MSI from the latest GitHub release, and runs it silently.
+
+## Portable ZIP
+
+If you cannot run an installer, you can use the portable ZIP instead.
+
+<Steps>
+  <Step title="Download the ZIP">
+    Go to the [latest release](https://github.com/gerardog/gsudo/releases/latest) and download `gsudo.portable.zip`.
+  </Step>
+  <Step title="Extract the correct folder">
+    Open the ZIP and extract the folder that matches your processor architecture: `x64`, `x86`, or `arm64`. Place the extracted folder wherever you want to keep gsudo (for example, `C:\Tools\gsudo`).
+  </Step>
+  <Step title="Add the folder to PATH">
+    Add the folder you extracted to your system's `PATH` environment variable so you can run `gsudo` from any console.
+  </Step>
+  <Step title="Restart your consoles">
+    Open a new console window and run `gsudo --version` to confirm the installation.
+  </Step>
+</Steps>
+
+## Windows version compatibility
+
+<Info>
+  gsudo works on Windows 7 SP1 and later. Some features — such as elevating as `TrustedInstaller` (`--ti`) — are only available on Windows 10 and Windows 11.
+</Info>
+
+On Windows 7, you may need to enable TLS 1.2 before using the PowerShell one-liner. On Windows 8.1 and later, no extra steps are needed.
+
+## Shell configuration (optional)
+
+After installing, gsudo works out of the box in every supported shell. For a better experience in PowerShell and Bash-for-Windows, follow the optional setup steps linked below:
+
+- **PowerShell**: Import the `gsudoModule` for tab completion, the `Invoke-Gsudo` cmdlet, and `gsudo !!` support. See [PowerShell setup](/usage/powershell).
+- **Bash for Windows** (Git-Bash, MinGW, MSYS2, Cygwin): See [Bash for Windows setup](/usage/bash-for-windows).

@@ -1,0 +1,88 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "gsudo",
+  "projectDescription": "A sudo equivalent for Windows that allows running commands or shells with elevated permissions in the current console window, with UAC integration and optional credentials caching.",
+  "theme": "aspen",
+  "primaryColor": "#2563EB",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation"
+            ]
+          },
+          {
+            "group": "Usage",
+            "pages": [
+              "usage/overview",
+              "usage/powershell",
+              "usage/wsl",
+              "usage/bash-for-windows"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration",
+              "credentials-cache"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "security",
+              "tips",
+              "troubleshooting"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "gsudo-vs-sudo",
+              "how-it-works"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Elevate commands in the current console window without opening a new one",
+    "Shell-aware elevation for CMD, PowerShell, WSL, Git-Bash, MinGW, Cygwin, NuShell, and more",
+    "Credentials Cache to reduce UAC popups (Auto, Explicit, or Disabled modes)",
+    "Run as specific user, integrity level, SYSTEM, or TrustedInstaller",
+    "I/O redirection and exit code support for scripting",
+    "gsudo !! to re-elevate the last command",
+    "PowerShell ScriptBlock syntax and Invoke-Gsudo wrapper function",
+    "Optional PowerShell module with tab completion and elevated prompt indicator",
+    "Portable — no Windows service required"
+  ],
+  "publicApiSurface": [
+    "gsudo [options] {command} [args]",
+    "gsudo cache [on | off | help] [-p pid] [-d duration]",
+    "gsudo config [key] [--global] [value|--reset]",
+    "gsudo status [--json | filter]",
+    "gsudo !!",
+    "-n | --new",
+    "-w | --wait",
+    "-u | --user {username}",
+    "-i | --integrity {level}",
+    "-s | --system",
+    "--ti",
+    "-k",
+    "-d | --direct",
+    "--loadProfile",
+    "--chdir {dir}",
+    "--loglevel {level}",
+    "--copyns",
+    "Invoke-Gsudo [-ScriptBlock] [-ArgumentList] [-InputObject] [-LoadProfile] [-Credential]",
+    "gsudo { ScriptBlock } [-args ...]"
+  ]
+}

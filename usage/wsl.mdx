@@ -1,0 +1,63 @@
+---
+title: "Using gsudo from WSL (Windows Subsystem for Linux)"
+description: "Elevate Windows and WSL commands from a WSL bash session using gsudo — covers WSL root vs Windows elevation, exit code handling, and UAC popup behaviour."
+---
+
+In WSL (Windows Subsystem for Linux), elevation and `root` are separate concepts. Gaining `root` inside WSL gives you full control over the Linux environment but does not grant admin privileges on the underlying Windows system. To get Windows admin rights from a WSL session, you need to elevate the `WSL.EXE` process itself — which is what gsudo does. A UAC popup will appear on the Windows desktop when elevation is requested.
+
+## Elevation vs root in WSL
+
+<CardGroup cols={2}>
+  <Card title="WSL root (su / sudo)" icon="linux">
+    Full control inside the Linux environment. No Windows admin rights granted. Use the native `su` or Linux `sudo` command.
+  </Card>
+  <Card title="Windows elevation (gsudo)" icon="windows">
+    Elevates the WSL process on the Windows side. Required for tasks like editing Windows system files or running Windows admin tools. Triggers a UAC popup.
+  </Card>
+</CardGroup>
+
+## Elevating WSL commands
+
+Prepend `gsudo` to any WSL/Linux command to run it with Windows elevation:
+
+```bash
+# Elevate the default shell
+PC:~$ gsudo
+
+# Run an elevated WSL command (creates a folder under C:\Windows)
+PC:~$ gsudo mkdir /mnt/c/Windows/MyFolder
+```
+
+## Elevating Windows/CMD commands
+
+Use `gsudo -d` to skip WSL shell detection and run a native Windows or CMD command directly:
+
+```bash
+# Open a Windows application with elevation
+PC:~$ gsudo -d notepad C:/Windows/System32/drivers/etc/hosts
+
+# Path with backslashes (quoted to avoid shell interpretation)
+PC:~$ gsudo -d "notepad C:\Windows\System32\drivers\etc\hosts"
+
+# Append to a Windows hosts file using CMD redirection
+PC:~$ gsudo -d "echo 127.0.0.1 www.MyWeb.com >> %windir%\System32\drivers\etc\hosts"
+```
+
+## Handling exit codes
+
+Standard exit codes work as expected. The gsudo-specific failure code is `999`, but because bash receives exit codes modulo 256, `999 mod 256 = 231`. Your scripts must test for `231` rather than `999`:
+
+```bash
+retval=$?
+if [ $retval -eq 0 ]; then
+    echo "Success"
+elif [ $retval -eq $((999 % 256)) ]; then  # 999 mod 256 = 231
+    echo "gsudo failed to elevate!"
+else
+    echo "Command failed with exit code $retval"
+fi
+```
+
+<Note>
+  The UAC popup triggered by gsudo appears on the Windows desktop. If you are running WSL in a terminal without a visible Windows desktop (for example, in a headless or remote session), the elevation request may not be visible and the process may appear to hang.
+</Note>

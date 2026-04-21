@@ -1,0 +1,81 @@
+---
+title: "Security model and risks of using gsudo"
+description: "Understand why Windows UAC is not a true security boundary, what specific risks gsudo introduces, and the mitigation options available to you."
+---
+
+gsudo is a convenience tool, just like Windows UAC itself. Before you decide how to configure it, it helps to understand the security model Windows actually provides — and where gsudo fits within it.
+
+## Why UAC is not a security boundary
+
+In 2002, a whitepaper by Chris Paget described a class of attacks called "Shatter Attacks," which allowed processes in the same Windows session to bypass security restrictions by abusing the Windows message loop. Microsoft's response was User Interface Privilege Isolation (UIPI) and the UAC elevation prompt, introduced in Windows Vista. Elevated processes run at high integrity level, logically separated from non-admin processes.
+
+That separation, however, quickly proved fragile. Raymond Chen from Microsoft [explained](https://devblogs.microsoft.com/oldnewthing/20160816-00/?p=94105) that the default UAC setting — "Notify only when apps try to change settings" — can be bypassed by any process on the same desktop by injecting a thread. In practice, this means the four UAC levels are really just two: "Always notify" and everything else.
+
+Over time, more than a hundred UAC bypass techniques have been documented, many still working on a fully updated Windows 11. Microsoft [has stated publicly](https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/disable-user-account-control) that same-desktop elevation is not a security boundary:
+
+> Same-desktop Elevation in UAC isn't a security boundary. It can be hijacked by unprivileged software that runs on the same desktop. Same-desktop Elevation should be considered a convenience feature.
+
+UAC in default mode is a guard against accidental self-harm, not a defense against malware. What actually protects you is your antivirus and your software habits.
+
+## What risks does gsudo introduce?
+
+Because gsudo is itself a convenience bridge between the elevated and unelevated worlds, it introduces two specific risks on top of UAC's existing limitations.
+
+### Risk 1: Same-console elevation
+
+When gsudo elevates a command in the same console window, it creates a live connection between a medium-integrity process (your shell) and a high-integrity process (the elevated command). A malicious process running at medium integrity can interact with that console — sending keystrokes to the elevated process or reading its output.
+
+<Warning>
+  This risk already exists when you use UAC in its default mode. It is a mild incremental risk, not a new category of exposure. Your antivirus remains the primary protection.
+</Warning>
+
+**How to mitigate it:**
+
+- Use the `-n` / `--new` flag to elevate in a new, isolated console window:
+
+  ```powershell
+  gsudo -n notepad C:\Windows\System32\drivers\etc\hosts
+  ```
+
+- Force all elevations to open in a new window by default:
+
+  ```powershell
+  gsudo config NewWindow.Force true
+  ```
+
+- Enable `SecurityEnforceUacIsolation` to run elevated commands non-interactively, with stdin redirected from `NULL`. This prevents any external process from driving the elevated command, but the command cannot accept keyboard input:
+
+  ```powershell
+  gsudo config SecurityEnforceUacIsolation true
+  ```
+
+### Risk 2: Active credentials cache
+
+gsudo's credentials cache lets you run multiple elevated commands with only one UAC popup. The cache is **disabled by default** for good reason.
+
+When the cache is active, it permits elevation for the invoker process and its children, all of which run at medium integrity level. A malicious process also at medium integrity could inject code into an allowed process and silently request elevation through the cache — without triggering a UAC prompt.
+
+<Warning>
+  Do not enable the credentials cache if you regularly run untrusted or third-party software in the same session.
+</Warning>
+
+**How to mitigate it:**
+
+- Leave the credentials cache disabled (the default). You will see a UAC prompt for each elevation.
+- If you do enable the cache, be aware of what else is running in your session.
+
+## The real protection
+
+Whether or not you use gsudo, the honest conclusion is:
+
+- Same-desktop UAC is a vulnerable convenience feature, not a security boundary.
+- gsudo is also a convenience feature that operates within those same limits.
+- **The only real protection against malware is your antivirus and your habit of not running untrusted software.**
+
+If you run a careful, well-maintained system with antivirus enabled, gsudo adds minimal risk beyond what UAC already exposes. If you regularly run untrusted code, neither UAC nor gsudo will protect you.
+
+## Reporting a vulnerability
+
+gsudo should never be exploitable from the network, and should never allow privilege escalation when gsudo is installed but not actively running. In the worst case, a vulnerability in gsudo should be equivalent to disabling UAC entirely — not worse.
+
+If you discover a vulnerability that exceeds that boundary, please report it responsibly by emailing `gerardog` at `gmail.com`. Do not disclose it publicly until it has been resolved.

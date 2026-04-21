@@ -1,0 +1,92 @@
+---
+title: "gsudo vs Microsoft sudo: feature comparison"
+description: "Side-by-side feature comparison between gsudo and Microsoft sudo for Windows — security impersonation, PowerShell support, credentials cache, and coexistence."
+---
+
+gsudo has been available since 2019 as an open-source productivity tool with over 700k downloads, running on Windows 7 SP1 through Windows 11. In February 2024, Microsoft released [Sudo for Windows](https://devblogs.microsoft.com/commandline/introducing-sudo-for-windows/), reversing its earlier position that a sudo-style tool posed unacceptable security risks. Both tools use comparable mechanisms under the hood, so their security models are roughly equivalent — the difference comes down to features and flexibility.
+
+## Feature comparison
+
+### Is it a proper sudo tool?
+
+| Feature | gsudo | Sudo for Windows |
+| ------- | ------ | ---------------- |
+| Executes command with elevated permissions | Yes | Yes |
+| Supports output redirection (`sudo dir > file.txt`) | Yes | Yes |
+| Supports input redirection (`echo md SomeFolder \| sudo cmd`) | Yes | Yes |
+| Returns the command exit code | Yes | Yes |
+| Preserves the current directory | Yes | Yes, except in new-window mode ⚠️ |
+| Source code available | [Yes](https://github.com/gerardog/gsudo) | [Yes](https://github.com/microsoft/sudo) |
+
+<Note>
+  Microsoft sudo does not preserve the current directory in new-window mode. See the [tracked issue](https://github.com/microsoft/sudo/issues/63) for details.
+</Note>
+
+### Security impersonation
+
+| Feature | gsudo | Sudo for Windows |
+| ------- | ------ | ---------------- |
+| Run with custom integrity level (`-i`, `--integrity`) | Yes | No |
+| Run as SYSTEM (`-s`, `--system`) | Yes | No |
+| Run as TrustedInstaller (`--ti`) | Yes | No |
+| Run as another user (`-u user`) | Yes | No |
+
+### User experience
+
+| Feature | gsudo | Sudo for Windows |
+| ------- | ------ | ---------------- |
+| Easy to install and update | Yes (winget, choco, scoop) | No (Windows Insider build required at launch) |
+| Fewer UAC pop-ups with credentials cache | [Yes](/credentials-cache) | No |
+| Elevate the current shell | Yes | No |
+| Elevate commands using the current shell's context | Yes | No |
+| Red `#` prompt indicator when elevated (CMD) | Yes | No |
+
+### Additional features
+
+| Feature | gsudo | Sudo for Windows |
+| ------- | ------ | ---------------- |
+| Run in a new window | Yes | Yes |
+| Keep new window open until a key is pressed | [Yes](/tips#force-elevation-in-a-new-window) | No |
+| Keep new window's shell open after command exits | [Yes](/tips#force-elevation-in-a-new-window) | No |
+| Run with input disabled | Yes | Yes |
+| Elevate last command with `sudo !!` | Yes | No |
+
+### PowerShell
+
+| Feature | gsudo | Sudo for Windows |
+| ------- | ------ | ---------------- |
+| ScriptBlock elevation syntax | `gsudo { scriptblock } -args $a,$b` | `sudo pwsh { scriptblock } -args $a,$b` (unofficial) |
+| Auto-complete of last 3 commands | Yes (with [gsudoModule](/usage/powershell#gsudo-powershell-module)) | No |
+| Auto-complete of command-line arguments | Yes (with [gsudoModule](/usage/powershell#gsudo-powershell-module)) | No |
+| Red `#` prompt indicator when elevated | Yes (with [gsudoModule](/usage/powershell#gsudo-powershell-module)) | No |
+
+## What if I install both?
+
+Both tools can coexist and work independently. However, the `sudo` keyword will invoke Microsoft's sudo by default because a typical installation places it in `C:\Windows\System32\sudo.exe`, which appears first in the `PATH` environment variable.
+
+gsudo v2.5.0 introduced a `PathPrecedence` configuration setting. When enabled, gsudo ensures it appears first in `PATH` so that the `sudo` keyword invokes gsudo instead.
+
+```powershell
+# Make gsudo take precedence over Microsoft sudo
+gsudo config PathPrecedence true
+```
+
+Restart all open consoles after running this command for the change to take effect. To revert:
+
+```powershell
+gsudo config PathPrecedence false
+```
+
+### Microsoft sudo argument compatibility
+
+gsudo also accepts Microsoft sudo–styled arguments, so commands written for Microsoft sudo work without changes:
+
+- `--inline`
+- `--disable-input`
+- `--preserve-env`
+- `--new-window`
+- `-D` / `--chdir {directory}`
+
+<Tip>
+  If you are migrating scripts from Microsoft sudo to gsudo, you do not need to rewrite the argument syntax — gsudo understands it natively.
+</Tip>

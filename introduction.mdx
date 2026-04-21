@@ -1,0 +1,78 @@
+---
+title: "What is gsudo? sudo for Windows explained"
+description: "Learn what gsudo is, how it solves Windows elevation without context-switching, and which shells it supports — CMD, PowerShell, WSL, Git-Bash, and more."
+---
+
+gsudo is a `sudo` equivalent for Windows that lets you run any command with elevated (admin) permissions directly in your current console window. Instead of opening a separate elevated terminal and copying commands across, you prepend `gsudo` (or the built-in `sudo` alias) to any command and it runs elevated — right where you are, with the same colors, keyboard input, and autocomplete you already have.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Same-window elevation" icon="layer-group">
+    Elevated commands run in your existing console. No new window opens unless you explicitly pass `-n`.
+  </Card>
+  <Card title="Shell detection" icon="terminal">
+    gsudo detects which shell you are in and elevates your command as a native shell command — no manual wrapping required.
+  </Card>
+  <Card title="Credentials cache" icon="bolt">
+    Enable cache mode to get a single UAC popup for multiple consecutive elevations, similar to how Unix sudo behaves.
+  </Card>
+  <Card title="Script-friendly" icon="scroll">
+    Stdout, stderr, and exit codes are all forwarded. If elevation fails, the exit code is 999 so scripts can detect it reliably.
+  </Card>
+  <Card title="Already-elevated safe" icon="shield-check">
+    If you run `gsudo` from a console that is already elevated, it simply runs the command — no error, no UAC popup.
+  </Card>
+  <Card title="Repeat last command" icon="rotate-right">
+    Run `gsudo !!` to re-run the last executed command as admin, similar to `sudo !!` on Unix.
+  </Card>
+</CardGroup>
+
+## How it differs from opening an elevated console
+
+When you open a new elevated terminal on Windows, you switch context entirely: different working directory, no access to network drives mapped in your normal session, and a separate window to manage. gsudo avoids this by keeping the elevated command inside your current console. The elevated process runs, outputs its results directly in your window, and exits — you never leave your current session.
+
+<Info>
+  gsudo does not modify the current process. It launches a new elevated process, runs your command, then returns. To leave an elevated shell started with `gsudo`, type `exit`.
+</Info>
+
+## Supported shells
+
+gsudo detects your current shell automatically and elevates commands using the correct syntax for each:
+
+| Shell | Notes |
+|---|---|
+| CMD | Default shell on Windows |
+| PowerShell / PowerShell Core | Use `gsudo { ScriptBlock }` syntax |
+| WSL (Windows Subsystem for Linux) | Elevates the Windows process, not the Linux root |
+| Git-Bash / MinGW / MSYS2 / Cygwin | Full support, including `gsudo !!` |
+| Yori | Supported |
+| Take Command | Supported |
+| NuShell | Supported |
+
+## UAC and credentials cache
+
+Every elevation triggers a Windows UAC popup by default. You can reduce this friction by enabling the credentials cache:
+
+- **Explicit** (default): UAC appears every time unless you start a cache session manually with `gsudo cache on`.
+- **Auto**: The first elevation starts a cache session automatically. Subsequent elevations within 5 minutes need no additional UAC popup.
+- **Disabled**: UAC appears every time and cache sessions are not allowed.
+
+<Tip>
+  Run `gsudo config CacheMode Auto` to switch to Auto mode and get a Unix sudo-like experience.
+</Tip>
+
+<Warning>
+  The credentials cache trades convenience for a small security risk. If a malicious process runs in the same session, it could use an active cache to elevate without a UAC prompt. Only enable the cache if you are confident your system is not compromised.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Install gsudo" icon="download" href="/installation">
+    Install via WinGet, Chocolatey, Scoop, MSI, or portable ZIP.
+  </Card>
+  <Card title="Usage guide" icon="book-open" href="/usage/overview">
+    Full command reference with flags, options, and examples for every shell.
+  </Card>
+</CardGroup>

@@ -1,0 +1,93 @@
+---
+title: "Troubleshoot common gsudo problems and known issues"
+description: "Fix common gsudo problems after install or upgrade, enable debug output, and find answers to known issues with network shares and PowerShell."
+---
+
+Most gsudo problems fall into a few predictable categories: stale console sessions after an upgrade, an unconfigured shell, or one of a handful of known Windows limitations. This page walks through each one.
+
+## After installation or upgrade
+
+If gsudo doesn't work immediately after you install or upgrade it, the most common cause is that your open console windows are still using the old PATH or a cached gsudo binary.
+
+**Close all open console windows and open new ones.** This applies to CMD, PowerShell, Windows Terminal tabs, and any other shell. After reopening, run `gsudo --version` to confirm the correct version is active.
+
+<Note>
+  The error `Unauthorized. (Different gsudo.exe?)` has the same root cause — your current session is talking to a different gsudo binary than the one that started the service. Restarting your consoles resolves it.
+</Note>
+
+## Configure your shell
+
+Some shells require a one-time setup step after gsudo is installed. If gsudo commands aren't recognized or tab completion doesn't work, check the [installation page](/installation#configure-your-shell) for shell-specific configuration steps.
+
+## Debug mode
+
+To see what gsudo is doing internally, pass the `--debug` flag before your command:
+
+```powershell
+gsudo --debug {command}
+```
+
+This prints verbose internal information that is useful when diagnosing unexpected behaviour or reporting an issue.
+
+## Known issues
+
+<AccordionGroup>
+  <Accordion title="PowerShell installed as a .NET global tool">
+    If you installed PowerShell with `dotnet tool install --global PowerShell`, gsudo may not work correctly with it. The .NET global tool install uses a shim that has [unfixed issues](https://github.com/PowerShell/PowerShell/issues/11747) with how it handles process invocation.
+
+    **Fix:** Uninstall the .NET global tool version and reinstall PowerShell using any other official method:
+
+    ```powershell
+    winget install Microsoft.PowerShell
+    # or
+    choco install pwsh
+    ```
+
+    See the [official PowerShell installation docs](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) for all supported installation options.
+  </Accordion>
+
+  <Accordion title="Elevated session can't access network shares">
+    An elevated process does not inherit the network share mappings from your non-elevated session. This is a Windows behaviour, not a gsudo bug — elevated and non-elevated tokens are treated as different users for network authentication purposes.
+
+    **Workaround:** Use the `--copyNS` flag to replicate your current network share connections into the elevated session:
+
+    ```powershell
+    gsudo --copyNS {command}
+    ```
+
+    <Warning>
+      `--copyNS` is not bi-directional and may prompt for credentials. Network shares mapped in the elevated session are not visible in the non-elevated session, and vice versa.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="gsudo fails when the current folder is a network drive">
+    gsudo can be placed on a network share and invoked by its UNC path (for example, `\\server\share\gsudo {command}`). However, gsudo does not work correctly if your **current working directory** is a mapped network drive.
+
+    **Workaround:** Change to a local directory before invoking gsudo:
+
+    ```powershell
+    # This will fail if Z: is a mapped network share
+    # Z:\> gsudo do-something
+
+    # Change to a local path first
+    cd C:\
+    gsudo do-something
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Get support
+
+If none of the above resolves your issue:
+
+<CardGroup cols={2}>
+  <Card title="GitHub issues" icon="github" href="https://github.com/gerardog/gsudo/issues">
+    Search existing issues or open a new one if you've identified a reproducible bug.
+  </Card>
+  <Card title="Discord" icon="discord" href="https://discord.com/invite/dEEA3P5WqF">
+    Chat with the community and get help from other gsudo users.
+  </Card>
+  <Card title="Gitter" icon="comment" href="https://gitter.im/gsudo/">
+    Alternative community chat room for gsudo support.
+  </Card>
+</CardGroup>

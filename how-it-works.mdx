@@ -1,0 +1,114 @@
+---
+title: "gsudo architecture: service, pipes, and elevation modes"
+description: "Technical overview of gsudo's architecture: elevated service launch, named-pipe IPC, and the four elevation modes — Piped, VT, Attached, and TokenSwitch."
+---
+
+When you run a command through gsudo, it launches a second instance of itself in **service mode** with elevated permissions (using Windows' `Verb='RunAs'` mechanism). That elevated service instance runs the requested command on behalf of the original, unelevated process. If the credentials cache is enabled, the same service instance can handle multiple elevations without triggering additional UAC prompts.
+
+## Communication between the unelevated and elevated sides
+
+The unelevated process and the elevated service communicate through two **named pipes** placed in the `ProtectedPrefix\Administrators` namespace — one pipe carries data (I/O) and the other carries control signals. This namespace is only writable by administrators, which prevents unprivileged processes from connecting to an already-running elevated service.
+
+In the source code, each elevation mode is implemented as a pair of classes:
+
+- **`IProcessRenderer`** — runs in the unelevated process, handles input capture and output display.
+- **`IProcessHost`** — runs in the elevated service, launches and manages the target process.
+
+The four concrete renderer/host pairs map directly to the four elevation modes described below.
+
+## Elevation modes
+
+gsudo has four elevation mechanisms. Each one was added to address limitations of the previous, and they are listed here in the order they were introduced. The current default is **TokenSwitch mode**.
+
+<AccordionGroup>
+  <Accordion title="Piped mode">
+    Piped mode was the first implementation — a proof of concept that later proved genuinely useful for scripting scenarios.
+
+    The elevated `PipedProcessHost` starts the target process with its standard I/O redirected and forwards all input and output to the unelevated side through named pipes. The unelevated `PipedClientRenderer` captures keyboard input and displays the output on screen.
+
+    Because input is handled by the unelevated console without knowledge of what the elevated process is doing, interactive features such as <kbd>Tab</kbd> completion do not work. The process runs with **elevated environment variables**.
+
+    **Pros:**
+    - Supports I/O redirection — output can be piped or saved to a file.
+
+    **Cons:**
+    - All apps run in redirected mode, even interactive ones.
+    - Input is limited to characters; key-press events are not forwarded.
+    - Encoding issues can occur, especially when the elevated process changes the active code page.
+  </Accordion>
+
+  <Accordion title="VT mode (PseudoConsole)">
+    VT mode uses the [Windows PseudoConsole API (ConPTY)](https://devblogs.microsoft.com/commandline/windows-command-line-introducing-the-windows-pseudo-console-conpty/) to give the elevated process a full virtual terminal. All VT sequences are forwarded to the unelevated side through named pipes and rendered in the user's console.
+
+    The process runs with **elevated environment variables**.
+
+    **Pros:**
+    - Full-featured console: colors, cursor movement, and full keyboard input all work.
+
+    **Cons:**
+    - Output redirection produces console-screen-recording output rather than clean process output.
+    - Performance is good but not as fast as the native-attach approaches below.
+    - Encoding issues can still occur if the elevated process changes the code page.
+    - Console window resizing is not implemented.
+  </Accordion>
+
+  <Accordion title="Attached mode">
+    Attached mode uses the Windows [`AttachConsole`](https://docs.microsoft.com/en-us/windows/console/attachconsole) API to connect the elevated process directly to the unelevated console. Windows and ConHost act as the bridge, so the elevated process interacts with the console natively — no piping involved.
+
+    The process runs with **elevated environment variables**.
+
+    **Pros:**
+    - Native console experience: full speed, full color support, full keyboard input, no encoding issues.
+
+    **Cons:**
+    - Does not support I/O redirection. If you pipe output from a gsudo command in this mode, it will not work as expected.
+  </Accordion>
+
+  <Accordion title="TokenSwitch mode (current default)">
+    TokenSwitch mode is the current default and the most capable of the four. It uses undocumented `kernel32` APIs to create the target process in a **paused state** from the unelevated side. The elevated service then replaces the process's primary token with an elevated one and resumes execution.
+
+    Because the process is initially created by the unelevated side, it inherits the **non-elevated environment variables** — not the elevated service's environment.
+
+    **Pros:**
+    - Native console experience: full speed, full color support, full keyboard input, no encoding issues.
+    - Supports I/O redirection.
+
+    **Cons:**
+    - The elevated process inherits the non-elevated environment variables.
+
+    **Fallback behavior:** when you elevate as a different user (for example, when you are not a local administrator and UAC prompts for other credentials), the non-elevated environment variables are meaningfully different from the elevated user's variables. In that scenario, TokenSwitch falls back automatically:
+
+    - To **Attached mode** when there is no I/O redirection.
+    - To **Piped mode** when I/O redirection is detected.
+  </Accordion>
+</AccordionGroup>
+
+## Environment variables: same or different?
+
+If your account is a local administrator, elevating as yourself means both the unelevated and elevated contexts share nearly identical environment variables, so TokenSwitch's behavior is unremarkable.
+
+If you are not a local administrator and UAC prompts for a different user's credentials, you are effectively running as a different user and environment isolation matters more. On Linux/Unix, `sudo` never preserves environment variables unless you pass `-E`. gsudo provides `--copyEV` to copy all environment variables from the unelevated session to the elevated process, with the exception of `%USERNAME%`.
+
+```powershell
+gsudo --copyEV some-command
+```
+
+## Forcing a specific elevation mode
+
+<Warning>
+  These flags are deprecated and may be removed or changed in a future release. gsudo chooses the best mode automatically — you should not need to override it.
+</Warning>
+
+If you need to force a specific mode for troubleshooting or testing, use the flags below. Use only one at a time.
+
+| Mode | One-time flag | Permanent config |
+| ---- | ------------- | ---------------- |
+| Attached | `--attached` | `gsudo config ForceAttachedConsole True` |
+| Piped | `--piped` | `gsudo config ForcePipedConsole True` |
+| VT | `--vt` | `gsudo config ForceVTConsole True` |
+
+To remove a permanent override, set the value back to `False`:
+
+```powershell
+gsudo config ForceAttachedConsole False
+```

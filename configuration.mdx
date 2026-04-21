@@ -1,0 +1,271 @@
+---
+title: "gsudo config: settings reference and examples"
+description: "Manage all gsudo settings using gsudo config — adjust cache mode, duration, log level, prompt strings, new-window behavior, and security options."
+---
+
+gsudo stores its settings in the Windows registry and exposes them through the `gsudo config` command. You can read any setting, write a new value, or reset it back to its default. Settings scoped to `--global` affect all users on the machine and require admin privileges to write.
+
+## Command syntax
+
+```powershell
+gsudo config                            # Show all current settings and their values
+gsudo config {key}                      # Read a single setting
+gsudo config {key} [--global] {value}  # Write a setting (user or machine-wide)
+gsudo config {key} [--global] --reset  # Reset a setting to its default value
+gsudo config --reset-all               # Reset ALL user and global settings to defaults
+```
+
+<Note>
+  `--global` writes to `HKEY_LOCAL_MACHINE` and affects every user on the machine. Without it, the setting is written to `HKEY_CURRENT_USER` and applies only to you. Global values take precedence over user values.
+</Note>
+
+## Settings reference
+
+<AccordionGroup>
+  <Accordion title="CacheMode" defaultOpen={false}>
+    Controls how the credentials cache operates. This is a global-only setting.
+
+    | Value | Behavior |
+    |-------|----------|
+    | `Explicit` | **(default)** Every elevation shows a UAC popup unless you manually start a cache session with `gsudo cache on`. |
+    | `Auto` | The first elevation starts a cache session automatically, similar to Unix sudo. |
+    | `Disabled` | Every elevation shows a UAC popup and attempts to start a cache session return an error. |
+
+    See the [credentials cache](/credentials-cache) page for a full explanation of each mode.
+
+    ```powershell
+    gsudo config CacheMode Auto
+    gsudo config CacheMode --reset   # revert to Explicit
+    ```
+  </Accordion>
+
+  <Accordion title="CacheDuration">
+    How long the credentials cache stays open when idle, in `HH:MM:SS` format. The default is 5 minutes (`00:05:00`). Use `Infinite` (or `-1`) to keep the cache open until you close it explicitly or log off. This is a global-only setting.
+
+    ```powershell
+    gsudo config CacheDuration 00:30:00   # 30 minutes
+    gsudo config CacheDuration Infinite   # no auto-expiry
+    gsudo config CacheDuration --reset    # back to 5 minutes
+    ```
+  </Accordion>
+
+  <Accordion title="LogLevel">
+    Controls how verbose gsudo's output is. The default is `Info`.
+
+    | Value | Description |
+    |-------|-------------|
+    | `All` | Everything, including trace messages |
+    | `Debug` | Debug and above |
+    | `Info` | **(default)** Normal status messages |
+    | `Warning` | Warnings and errors only |
+    | `Error` | Errors only |
+    | `None` | Silent |
+
+    ```powershell
+    gsudo config LogLevel Warning   # suppress info messages
+    gsudo config LogLevel --reset
+    ```
+
+    You can also override this per-invocation with `gsudo --loglevel {value} {command}`.
+  </Accordion>
+
+  <Accordion title="NewWindow.Force">
+    When set to `true`, every elevation opens in a new console window — equivalent to always passing `--new` on the command line. Default is `false`. Can be set per-user or globally.
+
+    ```powershell
+    gsudo config NewWindow.Force true
+    gsudo config NewWindow.Force --reset
+    ```
+  </Accordion>
+
+  <Accordion title="NewWindow.CloseBehaviour">
+    Determines what happens to the new console window after the elevated process exits. Only applies when gsudo opens a new window. Can be set per-user or globally.
+
+    | Value | Behavior |
+    |-------|----------|
+    | `OsDefault` | **(default)** The OS decides — the window typically closes automatically. |
+    | `KeepShellOpen` | The elevated shell stays open so you can inspect output. |
+    | `PressKeyToClose` | A "press any key to close" prompt appears before the window closes. |
+
+    ```powershell
+    gsudo config NewWindow.CloseBehaviour PressKeyToClose
+    gsudo config NewWindow.CloseBehaviour --reset
+    ```
+  </Accordion>
+
+  <Accordion title="Prompt">
+    The CMD prompt string used when gsudo runs in standard (attached) mode. On Windows 10 and later the default is `$p$e[1;31m# $e[0m` (ANSI-colored red `#`). On older Windows it falls back to `$P# `.
+
+    ```powershell
+    gsudo config Prompt "$P [elevated]$G "
+    gsudo config Prompt --reset
+    ```
+  </Accordion>
+
+  <Accordion title="PipedPrompt">
+    The CMD prompt string used when gsudo falls back to piped mode (for example when the terminal does not support a PTY). Default is `$P# ` (plain ASCII, safe for all terminals).
+
+    ```powershell
+    gsudo config PipedPrompt "$P# "
+    gsudo config PipedPrompt --reset
+    ```
+  </Accordion>
+
+  <Accordion title="PowerShellLoadProfile">
+    When `true`, gsudo loads the PowerShell user profile when elevating PowerShell commands. Default is `false`. Equivalent to passing `--loadProfile` on the command line. Can be set per-user or globally.
+
+    ```powershell
+    gsudo config PowerShellLoadProfile true
+    gsudo config PowerShellLoadProfile --reset
+    ```
+  </Accordion>
+
+  <Accordion title="SecurityEnforceUacIsolation">
+    When `true`, gsudo closes the input handle of the elevated process, preventing the elevated side from reading keyboard input from the unelevated terminal. This reduces the risk of privilege escalation through the shared console but makes interactive elevated commands less convenient. Default is `false`. Equivalent to `--disableInput`. This is a global-only setting.
+
+    ```powershell
+    gsudo config SecurityEnforceUacIsolation true --global
+    gsudo config SecurityEnforceUacIsolation --global --reset
+    ```
+  </Accordion>
+
+  <Accordion title="CopyNetworkShares">
+    When `true`, gsudo reconnects the current user's mapped network drives inside the elevated session. Default is `false`. Equivalent to passing `--copyNS` on the command line. Can be set per-user or globally.
+
+    <Warning>
+      Reconnecting network shares is interactive — Windows may prompt for credentials. Expect verbose output.
+    </Warning>
+
+    ```powershell
+    gsudo config CopyNetworkShares true
+    gsudo config CopyNetworkShares --reset
+    ```
+  </Accordion>
+
+  <Accordion title="CopyEnvironmentVariables">
+    When `true`, copies the caller's environment variables into the elevated process. Default is `false`. Only relevant in attached mode; other modes already inherit the environment. Equivalent to `--copyEV`.
+
+    <Note>
+      This setting is deprecated. In the default console mode, environment variables are already available and you do not need this setting.
+    </Note>
+
+    ```powershell
+    gsudo config CopyEnvironmentVariables true
+    gsudo config CopyEnvironmentVariables --reset
+    ```
+  </Accordion>
+
+  <Accordion title="ExceptionList">
+    A semicolon-separated list of executable names that gsudo will wrap with `cmd /c` before running. This works around compatibility issues with certain programs. Default value includes `notepad.exe`, `powershell.exe`, `whoami.exe`, `vim.exe`, and `nano.exe`. This is a global-only setting.
+
+    ```powershell
+    gsudo config ExceptionList "notepad.exe;powershell.exe;myapp.exe;"
+    gsudo config ExceptionList --global --reset
+    ```
+  </Accordion>
+
+  <Accordion title="PathPrecedence">
+    When `true`, moves gsudo's install directory to the front of the system `PATH` environment variable so that `gsudo` (and its `sudo` alias) take precedence over Microsoft's built-in `sudo` in Windows 11. Default is `false`. This is a global-only setting and requires a console restart to take effect.
+
+    ```powershell
+    gsudo config PathPrecedence true --global
+    gsudo config PathPrecedence --global --reset
+    ```
+  </Accordion>
+
+  <Accordion title="ForceAttachedConsole (advanced)">
+    Forces gsudo to use attached console mode. This can fix problems with specific programs that behave incorrectly in other modes. Default is `false`. Equivalent to `--attached`.
+
+    <Warning>
+      This is a legacy/advanced setting. Only change it if you have a specific compatibility problem.
+    </Warning>
+
+    ```powershell
+    gsudo config ForceAttachedConsole true
+    gsudo config ForceAttachedConsole --reset
+    ```
+  </Accordion>
+
+  <Accordion title="ForcePipedConsole (advanced)">
+    Forces gsudo to use legacy piped mode instead of the default console mode. Default is `false`. Not recommended for general use.
+
+    <Warning>
+      This is a legacy/advanced setting. Only change it if you have a specific compatibility problem.
+    </Warning>
+
+    ```powershell
+    gsudo config ForcePipedConsole true
+    gsudo config ForcePipedConsole --reset
+    ```
+  </Accordion>
+
+  <Accordion title="ForceVTConsole (advanced)">
+    Forces gsudo to use Virtual Terminal (VT) mode. Default is `false`. Experimental. Equivalent to `--vt`.
+
+    <Warning>
+      This is an experimental setting. Only change it if you have a specific compatibility problem.
+    </Warning>
+
+    ```powershell
+    gsudo config ForceVTConsole true
+    gsudo config ForceVTConsole --reset
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Common configuration examples
+
+<Steps>
+  <Step title="Enable Unix-style cache mode">
+    Get one UAC popup per session, then elevate freely for 5 minutes — just like Unix sudo:
+
+    ```powershell
+    gsudo config CacheMode Auto
+    ```
+  </Step>
+
+  <Step title="Extend or remove the cache timeout">
+    Keep the cache open for 30 minutes, or indefinitely until you close it manually:
+
+    ```powershell
+    gsudo config CacheDuration 00:30:00
+    # or never expire:
+    gsudo config CacheDuration Infinite
+    ```
+  </Step>
+
+  <Step title="Customize the elevated prompt">
+    Show a clear visual indicator that you are in an elevated context:
+
+    ```powershell
+    gsudo config Prompt "$P [elevated]$G "
+    ```
+
+    To restore the default:
+
+    ```powershell
+    gsudo config Prompt --reset
+    ```
+  </Step>
+
+  <Step title="Reduce log verbosity in scripts">
+    Suppress informational messages when using gsudo in automated scripts:
+
+    ```powershell
+    gsudo config LogLevel Error
+    ```
+  </Step>
+
+  <Step title="Always open in a new window">
+    Make every elevation open a new console window without needing to pass `--new` each time:
+
+    ```powershell
+    gsudo config NewWindow.Force true
+    gsudo config NewWindow.CloseBehaviour PressKeyToClose
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  Run `gsudo config` with no arguments at any time to see all current settings and their values.
+</Tip>

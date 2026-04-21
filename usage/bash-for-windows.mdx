@@ -1,0 +1,67 @@
+---
+title: "Using gsudo from Git-Bash, MinGW, and Cygwin"
+description: "Elevate commands from Git-Bash, MinGW, MSYS2, and Cygwin on Windows, including the required bash profile fix for credentials cache support."
+---
+
+gsudo supports Bash-for-Windows environments including Git-Bash, MinGW, MSYS2, and Cygwin. In these shells, prepend `gsudo` to elevate bash commands, or use `gsudo -d` to run a native CMD command with elevation.
+
+## Supported environments
+
+<CardGroup cols={2}>
+  <Card title="Git-Bash" icon="git-alt">
+    Bundled with Git for Windows. Detected automatically by gsudo.
+  </Card>
+  <Card title="MinGW / MSYS2" icon="terminal">
+    Minimalist GNU environments for Windows. Detected automatically by gsudo.
+  </Card>
+  <Card title="Cygwin" icon="c">
+    POSIX-compatible layer for Windows. Detected automatically by gsudo.
+  </Card>
+  <Card title="BusyBox" icon="box">
+    Lightweight Unix utilities for Windows. Also detected automatically.
+  </Card>
+</CardGroup>
+
+## Basic usage
+
+```bash
+# Elevate a bash command
+gsudo mkdir /c/Windows/MyFolder
+
+# Elevate a CMD command with -d
+gsudo -d dir C:\
+```
+
+## Required bash profile configuration
+
+There is a known issue in Bash-for-Windows shells: the process tree is split when invoking bash scripts such as the gsudo wrapper script. This split invalidates the credentials cache, causing extra UAC popups even when the cache should be active.
+
+To fix this, add the following function to your `.bashrc` (or equivalent profile file). It bypasses the wrapper and calls `gsudo.exe` directly:
+
+```bash
+gsudo() { WSLENV=WSL_DISTRO_NAME:USER:$WSLENV MSYS_NO_PATHCONV=1 gsudo.exe "$@"; }
+```
+
+<Note>
+  The function definition does not end with a trailing semicolon after `"$@"` — this is intentional. The absence of a semicolon is correct bash syntax here.
+</Note>
+
+After adding this line, restart your shell or run `source ~/.bashrc` for the change to take effect.
+
+## Shell detection
+
+gsudo inspects the process tree at runtime to detect your current shell. For Git-Bash, MinGW, MSYS2, and Cygwin it identifies the appropriate environment and elevates commands accordingly. Use `-d` (or `--direct`) if you want to skip detection and treat the command as a plain CMD invocation.
+
+## Using `gsudo !!`
+
+`gsudo !!` re-runs your last executed command as administrator. It works natively in Git-Bash, MinGW, MSYS2, and Cygwin without any additional configuration:
+
+```bash
+# Run a command, realise it needs elevation, then re-run it elevated
+cat /mnt/c/Windows/System32/drivers/etc/hosts
+gsudo !!
+```
+
+<Tip>
+  In PowerShell, `gsudo !!` requires the gsudo PowerShell module to be loaded. In Bash-for-Windows shells it works out of the box.
+</Tip>

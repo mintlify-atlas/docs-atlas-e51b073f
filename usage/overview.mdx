@@ -1,0 +1,178 @@
+---
+title: "gsudo command reference: flags, options, and examples"
+description: "Complete reference for gsudo syntax, subcommands, flags, options, exit codes, and practical examples for elevating commands on Windows."
+---
+
+gsudo is a `sudo` equivalent for Windows that lets you run commands with elevated permissions directly in your current console window. You can use the `sudo` alias anywhere you would type `gsudo` — the installers create it automatically.
+
+## Syntax
+
+```powershell
+gsudo [options] {command} [args]
+```
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `gsudo` | Elevates your current shell in the current console window |
+| `gsudo {command} [args]` | Runs the given command with elevated permissions |
+| `gsudo cache [on \| off \| help]` | Starts or stops a credentials cache session to reduce UAC popups |
+| `gsudo status [--json \| filter]` | Shows the current user, cache state, and console status |
+| `gsudo !!` | Re-runs the last executed command as administrator |
+
+## Options
+
+### General options
+
+<ParamField path="--new" type="flag">
+  Short form: `-n`. Starts the command in a new console window and returns immediately.
+</ParamField>
+
+<ParamField path="--wait" type="flag">
+  Short form: `-w`. When used with `--new`, waits for the command to finish before returning.
+</ParamField>
+
+<ParamField path="--keepShell" type="flag">
+  After running a command, keeps the elevated shell open. Mutually exclusive with `--keepWindow`.
+</ParamField>
+
+<ParamField path="--keepWindow" type="flag">
+  After running a command in a new console, prompts for a keypress before closing the window. Mutually exclusive with `--keepShell`.
+</ParamField>
+
+<ParamField path="--close" type="flag">
+  Overrides the `NewWindow.CloseBehaviour` setting and always closes the new window when the command exits.
+</ParamField>
+
+### Security options
+
+<ParamField path="--integrity" type="string">
+  Short form: `-i`. Sets the integrity level of the elevated process. Accepted values: `Untrusted`, `Low`, `Medium`, `MediumPlus`, `High` (default), `System`.
+</ParamField>
+
+<ParamField path="--user" type="string">
+  Short form: `-u`. Runs the command as the specified user. Prompts for a password. For local admin accounts, shows a UAC prompt unless `-i Medium` is also passed.
+</ParamField>
+
+<ParamField path="--system" type="flag">
+  Short form: `-s`. Runs the command as the `NT AUTHORITY\SYSTEM` account.
+</ParamField>
+
+<ParamField path="--ti" type="flag">
+  Runs the command as a member of `NT SERVICE\TrustedInstaller`.
+</ParamField>
+
+<ParamField path="-k" type="flag">
+  Alias: `--reset-timestamp`. Kills all cached credentials. The next gsudo invocation will trigger a UAC popup.
+</ParamField>
+
+### Shell options
+
+<ParamField path="--direct" type="flag">
+  Short form: `-d`. Skips shell detection and treats the command as a CMD command.
+</ParamField>
+
+<ParamField path="--loadProfile" type="flag">
+  When elevating PowerShell commands, loads the user's PowerShell profile in the elevated instance.
+</ParamField>
+
+### Other options
+
+<ParamField path="--loglevel" type="string">
+  Sets the minimum log level to display. Accepted values: `All`, `Debug`, `Info`, `Warning`, `Error`, `None`.
+</ParamField>
+
+<ParamField path="--debug" type="flag">
+  Enables debug mode with verbose output.
+</ParamField>
+
+<ParamField path="--copyNS" type="flag">
+  Connects network drives to the elevated user. This is verbose and may prompt interactively for credentials.
+</ParamField>
+
+<ParamField path="--copyEV" type="flag">
+  Deprecated. Copies environment variables to the elevated process. Not needed in the default console mode.
+</ParamField>
+
+<ParamField path="--chdir" type="string">
+  Short form: `-D` (case-sensitive). Changes the working directory to the given path before running the command.
+</ParamField>
+
+<ParamField path="--disable-input" type="flag">
+  Alias: `--disableInput`. Closes the input handle of the elevated process, preventing it from reading keyboard input. Equivalent to `gsudo config SecurityEnforceUacIsolation true` but applies per-invocation only.
+</ParamField>
+
+<ParamField path="--version" type="flag">
+  Short form: `-v`. Displays the gsudo version and exits.
+</ParamField>
+
+## Examples
+
+```powershell
+# Elevate the current shell in the current console window
+gsudo
+
+# Elevate the current shell in a new console window
+gsudo -n
+
+# Open a new window, run a script, and wait for it to finish
+gsudo -n -w powershell ./Do-Something.ps1
+
+# Elevate a GUI application
+gsudo notepad %windir%\system32\drivers\etc\hosts
+
+# Use the built-in sudo alias
+sudo notepad
+
+# Pipe and redirect output from an elevated command
+gsudo dir | findstr /c:"bytes free" > FreeSpace.txt
+
+# Run an elevated command as a specific user at Medium integrity (no UAC)
+gsudo -u AdminUser -i Medium cmd
+
+# Run a command as SYSTEM
+gsudo -s cmd
+
+# Change directory before running the elevated command
+gsudo --chdir C:\Windows\System32 cmd
+```
+
+### Configuration examples
+
+```powershell
+# Show all current config settings
+gsudo config
+
+# Reduce log output to errors only
+gsudo config LogLevel "Error"
+
+# Set a custom elevated prompt
+gsudo config Prompt "$P [elevated]$G "
+
+# Reset the prompt to its default
+gsudo config Prompt --reset
+
+# Enable credentials cache (fewer UAC popups)
+gsudo config CacheMode Auto
+```
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | The command completed successfully |
+| `999` | gsudo failed to elevate (e.g. UAC was denied) |
+| other | The exit code returned by the elevated command itself |
+
+<Note>
+  On WSL (Windows Subsystem for Linux), exit code `999` is received as `231` because bash reads it modulo 256 (`999 mod 256 = 231`).
+</Note>
+
+## The `sudo` alias
+
+All gsudo installers (Scoop, WinGet, Chocolatey, MSI) create a `sudo` alias automatically. You can use `sudo` and `gsudo` interchangeably at the command line.
+
+```powershell
+sudo notepad %windir%\system32\drivers\etc\hosts
+```

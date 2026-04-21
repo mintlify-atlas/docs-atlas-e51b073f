@@ -1,0 +1,232 @@
+---
+title: "Elevate PowerShell commands with gsudo"
+description: "Elevate PowerShell commands with gsudo using script block syntax, Invoke-Gsudo, or the legacy string syntax, plus the optional PowerShell module."
+---
+
+When your current shell is PowerShell, gsudo detects this automatically and elevates commands as native PowerShell. You have three syntax options — script block (fastest), `Invoke-Gsudo` (supports `$using:` variables), and legacy string syntax (not recommended). You can also load the gsudo PowerShell module for tab completion and additional helper functions.
+
+<Warning>
+  If you installed PowerShell Core as a `dotnet global tool`, gsudo will not work correctly. Run `dotnet tool list --global` to check. If it appears in the list, uninstall it and reinstall PowerShell using `winget install Microsoft.PowerShell`, `choco install pwsh`, a download from the [PowerShell GitHub releases page](https://github.com/PowerShell/PowerShell/releases/latest), or the Microsoft Store.
+</Warning>
+
+## Elevation approaches
+
+<CardGroup cols={3}>
+  <Card title="Script block" icon="bolt">
+    Fastest. Wrap the command in `{ braces }`. Output is printed directly unless captured.
+  </Card>
+  <Card title="Invoke-Gsudo" icon="function-square">
+    Slower but supports `$using:` variable references and preserves more context.
+  </Card>
+  <Card title="String command" icon="quote-left">
+    Legacy. Accepts a quoted string. Returns strings, not PSObjects. Not recommended.
+  </Card>
+</CardGroup>
+
+## Script block syntax
+
+The script block syntax is the recommended approach. Wrap the command you want to elevate in curly braces. PowerShell parses and auto-completes the block, but it runs in a separate elevated process so it cannot access variables from the parent scope.
+
+```powershell
+# Syntax
+gsudo [-nwskd] [--loadProfile]
+      [-u|--user {username}] [--integrity {i}] [--ti]
+      { ScriptBlock } [-args $argument1[..., $argumentN]]
+```
+
+Pass values to the script block using the `-args` parameter and read them via `$args`:
+
+```powershell
+# Simple elevation
+gsudo { Get-Process "chrome" }
+
+# Pass a single argument
+gsudo { Get-Process $args } -args "chrome"
+
+# Pass multiple arguments
+gsudo { echo $args[0] $args[1] } -args "Hello", "World"
+
+# Parameterised example with variables
+$file = 'C:\My Secret.txt'
+$algorithm = 'md5'
+$hash = gsudo { (Get-FileHash $args[0] -Algorithm $args[1]).Hash } -args $file, $algorithm
+```
+
+When you capture the output in a variable, gsudo serialises the result as `PSObject` automatically:
+
+```powershell
+$services = gsudo { Get-Service 'WSearch', 'Winmgmt' }
+Write-Output $services.DisplayName
+```
+
+For pipeline input, map it explicitly with `$input`:
+
+```powershell
+Get-Process winword | gsudo { $input | Stop-Process }
+```
+
+<Note>
+  gsudo only elevates one command in a pipeline. To elevate an entire pipeline, put it inside a script block: `gsudo { command1 | command2 | command3 }`.
+</Note>
+
+<Tip>
+  If you do not capture the output in a variable, serialisation is skipped entirely and you get the best possible performance.
+</Tip>
+
+## Invoke-Gsudo function
+
+`Invoke-Gsudo` is a wrapper function with native PowerShell syntax. It is slower than the script block syntax because serialisation of inputs and outputs is always performed, but it supports the `$using:` scope modifier so you can reference parent-scope variables directly.
+
+```powershell
+# Syntax
+Invoke-Gsudo [-ScriptBlock] <ScriptBlock>
+             [[-ArgumentList] <Object[]>]
+             [-InputObject <PSObject>]
+             [-LoadProfile | -NoProfile]
+             [-Credential <PSCredential>]
+```
+
+<AccordionGroup>
+  <Accordion title="-ScriptBlock">
+    The PowerShell script block to run elevated. Required.
+  </Accordion>
+  <Accordion title="-ArgumentList">
+    Optional array of values to pass to the script block, accessible via `$args`.
+  </Accordion>
+  <Accordion title="-InputObject">
+    Pipeline input object to pass to the elevated script block.
+  </Accordion>
+  <Accordion title="-LoadProfile / -NoProfile">
+    `-LoadProfile` loads the user's PowerShell profile in the elevated instance. `-NoProfile` (the default) skips it.
+  </Accordion>
+  <Accordion title="-Credential">
+    A `PSCredential` object to run the command as a specific user. Equivalent to passing `-u` to gsudo.
+  </Accordion>
+</AccordionGroup>
+
+```powershell
+# Use $using: to reference parent-scope variables
+$MyString = "Hello World"
+Invoke-Gsudo { Write-Output $using:MyString }
+
+# Pipeline input
+Get-Process SpoolSv | Invoke-Gsudo { Stop-Process -Force }
+
+# Variable substitution
+$folder = "C:\ProtectedFolder"
+Invoke-Gsudo { Remove-Item $using:folder }
+
+# Capture serialised output
+(Invoke-Gsudo { Get-ChildItem $using:folder }).LastWriteTime
+```
+
+`Invoke-Gsudo` also forwards additional context to the elevated process: the current location for non-filesystem providers and `$ErrorActionPreference`.
+
+## Legacy string syntax
+
+This syntax is still supported but not recommended. The command must be expressed as a quoted string, and output is returned as plain strings rather than `PSObject` instances.
+
+```powershell
+$file = 'C:\My Secret.txt'
+$algorithm = 'md5'
+$hash = gsudo "(Get-FileHash '$file' -Algorithm $algorithm).Hash"
+```
+
+## Testing elevation success
+
+Check `$LastExitCode` after any gsudo call to detect whether elevation succeeded or the command failed:
+
+```powershell
+if ($LastExitCode -eq 999) {
+    'gsudo failed to elevate!'
+} elseif ($LastExitCode) {
+    'Command failed!'
+} else {
+    'Success!'
+}
+```
+
+## Elevating CMD commands from PowerShell
+
+Use `gsudo -d` to tell gsudo to skip PowerShell detection and treat the argument as a CMD command:
+
+```powershell
+gsudo -d dir C:\
+```
+
+## PowerShell module
+
+For an enhanced experience, import the optional `gsudoModule` into your PowerShell profile. This enables:
+
+- Tab-key auto-completion for gsudo and `Invoke-Gsudo` parameters. After typing `gsudo ` and pressing `Tab`, your previously executed commands are suggested.
+- `gsudo !!` support to re-run the last command as administrator.
+- Helper functions: `Test-IsGsudoCacheAvailable`, `Test-IsProcessElevated`, and `Test-IsAdminMember`.
+- An optional `gsudoPrompt` that adds a red `#` to your prompt when the current session is elevated.
+
+### Importing the module
+
+Add the import statement to your `$PROFILE`:
+
+```powershell
+Import-Module "gsudoModule"
+```
+
+Or run the following one-liner to append it automatically:
+
+```powershell
+Write-Output "`nImport-Module `"gsudoModule`"" | Add-Content $PROFILE
+```
+
+### Helper functions
+
+| Function | Returns |
+|---|---|
+| `Test-IsGsudoCacheAvailable` | `$true` if a gsudo cache session is active (elevation without UAC is possible) |
+| `Test-IsProcessElevated` | `$true` if the current process is running elevated |
+| `Test-IsAdminMember` | `$true` if the current user is a member of the local Administrators group |
+
+### Elevated prompt indicator
+
+If you have not customised your prompt with a tool like Oh-My-Posh, you can add a visual indicator for elevated sessions. After importing `gsudoModule`, add this line to your `$PROFILE`:
+
+```powershell
+Set-Alias Prompt gsudoPrompt
+```
+
+### Creating a `sudo` alias
+
+You can alias either `gsudo` or `Invoke-Gsudo` to `sudo` in your profile:
+
+```powershell
+Set-Alias 'sudo' 'gsudo'
+# or
+Set-Alias 'sudo' 'Invoke-Gsudo'
+```
+
+## Loading your PowerShell profile on elevation
+
+By default, gsudo invokes the elevated PowerShell instance with `-NoProfile`, so your `$PROFILE` is not loaded. If your elevated command depends on profile-defined functions or variables, you have three options:
+
+<Steps>
+  <Step title="Per command with gsudo">
+    Infix `--loadProfile` before the script block:
+
+    ```powershell
+    gsudo --loadProfile { echo (1+1) }
+    ```
+  </Step>
+  <Step title="Per command with Invoke-Gsudo">
+    Pass the `-LoadProfile` switch:
+
+    ```powershell
+    Invoke-Gsudo { echo (1+1) } -LoadProfile
+    ```
+  </Step>
+  <Step title="Permanently via config">
+    Set the option globally so every elevation loads the profile:
+
+    ```powershell
+    gsudo config PowerShellLoadProfile true
+    ```
+  </Step>
+</Steps>

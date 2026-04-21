@@ -1,0 +1,228 @@
+---
+title: "Tips and tricks for using gsudo effectively"
+description: "Practical gsudo techniques: force elevation in a new window, write self-elevating scripts in CMD and PowerShell, and use mixed elevation in Windows Terminal."
+---
+
+These tips cover common gsudo usage patterns that go beyond the basics — from forcing elevation into a separate window for better isolation, to writing scripts that elevate themselves, to using gsudo alongside Windows Terminal profiles.
+
+## Force elevation in a new window
+
+By default, gsudo elevates in the same console window. This is convenient, but if you prefer stronger isolation between your elevated and non-elevated session, you can force elevation to always open a new console window.
+
+<AccordionGroup>
+  <Accordion title="Enable new-window elevation globally">
+    Run the following command to force all gsudo elevations to open in a new window:
+
+    ```powershell
+    gsudo config NewWindow.Force true
+    ```
+
+    To disable it and return to same-window elevation:
+
+    ```powershell
+    gsudo config NewWindow.Force false
+    ```
+  </Accordion>
+
+  <Accordion title="Elevate in a new window for a single command">
+    Use the `-n` or `--new` flag to open a new console for a specific command only:
+
+    ```powershell
+    gsudo -n notepad C:\Windows\System32\drivers\etc\hosts
+    ```
+  </Accordion>
+
+  <Accordion title="Control what happens after the command finishes">
+    When a command completes quickly, the new window may close before you can read the output. Use one of these flags to control the window behaviour.
+
+    Per-command flags:
+
+    - `--keepShell` — keep the elevated shell open after the command exits
+    - `--keepWindow` — ask for a keypress before closing the window
+
+    ```powershell
+    gsudo -n --keepWindow ping 8.8.8.8
+    ```
+
+    To set a permanent default, configure `NewWindow.CloseBehaviour`:
+
+    ```powershell
+    gsudo config NewWindow.CloseBehaviour KeepShellOpen
+    # or
+    gsudo config NewWindow.CloseBehaviour PressKeyToClose
+    # or
+    gsudo config NewWindow.CloseBehaviour OsDefault
+    ```
+
+    | Value | Behaviour |
+    |---|---|
+    | `OsDefault` | The OS decides whether to close the window (default) |
+    | `KeepShellOpen` | Keeps the elevated shell open after the command finishes |
+    | `PressKeyToClose` | Waits for a keypress before closing the window |
+  </Accordion>
+</AccordionGroup>
+
+## Script self-elevation
+
+You can write scripts that detect whether they are running elevated and re-launch themselves with admin rights if not. Use `gsudo status` to check elevation state rather than `whoami` or `net session` — `whoami` output varies by OS language, and `net session` fails when the network is offline.
+
+<AccordionGroup>
+  <Accordion title="CMD batch: long version">
+    Save this as `self-elevate.bat`. The script checks elevation status, then re-runs itself with gsudo if needed:
+
+    ```batch
+    @echo off
+    gsudo status IsElevated --no-output && goto :IsElevated
+
+    echo Admin rights needed. Elevating using gsudo.
+    gsudo "%~f0" %*
+    if errorlevel 999 Echo Failed to elevate!
+    exit /b %errorlevel%
+
+    :IsElevated
+    :: You are elevated here. Do admin stuff.
+    ```
+  </Accordion>
+
+  <Accordion title="CMD batch: one-liner version">
+    A compact self-elevation that fits on a single line:
+
+    ```batch
+    @gsudo status IsElevated --no-output || (gsudo "%~f0" & exit /b)
+    :: You are elevated here. Do admin stuff.
+    ```
+  </Accordion>
+
+  <Accordion title="PowerShell self-elevation">
+    Save this as `self-elevate.ps1`. It uses `Test-IsElevated` to check the current session and re-runs the script with gsudo if needed:
+
+    ```powershell
+    function Test-IsElevated {
+      return (New-Object Security.Principal.WindowsPrincipal(
+        [Security.Principal.WindowsIdentity]::GetCurrent()))
+        .IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+
+    if ((Test-IsElevated) -eq $false) {
+      Write-Warning "This script requires local admin privileges. Elevating..."
+      gsudo "& '$($MyInvocation.MyCommand.Source)'" $args
+      if ($LastExitCode -eq 999 ) {
+        Write-error 'Failed to elevate.'
+      }
+      return
+    }
+
+    # You are elevated. Do admin stuff here.
+    ```
+  </Accordion>
+
+  <Accordion title="Detect if the current session is elevated">
+    Use these snippets to check elevation status in your scripts.
+
+    **PowerShell — using gsudo:**
+
+    ```powershell
+    $IsElevated = 'true' -eq (gsudo status IsElevated)
+    ```
+
+    **PowerShell — native method:**
+
+    <Note>
+      Despite its name, `Test-IsElevated` does not check group membership — it returns `$true` only when the current process is actually elevated.
+    </Note>
+
+    ```powershell
+    function Test-IsElevated {
+      return (New-Object Security.Principal.WindowsPrincipal(
+        [Security.Principal.WindowsIdentity]::GetCurrent()))
+        .IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    ```
+
+    **CMD batch — using gsudo:**
+
+    ```batch
+    gsudo status IsElevated --no-output
+    if errorlevel 0 echo Current process is not elevated
+    if errorlevel 1 echo Current process is elevated
+    ```
+  </Accordion>
+
+  <Accordion title="Detect if the current user is a member of the local admins group">
+    Checking group membership (S-1-5-32-544) tells you whether the user *can* elevate via UAC, regardless of whether the current session is elevated.
+
+    **CMD — using gsudo:**
+
+    ```batch
+    gsudo status IsAdminMember --no-output
+    if errorlevel 1 goto IsAdminMember
+    ```
+
+    **CMD — without gsudo:**
+
+    ```batch
+    whoami /groups | findstr S-1-5-32-544 > nul
+    if errorlevel 1 goto IsAdmin
+    echo Not Admin
+    exit /b
+    :IsAdmin
+    echo Current user is a member of the Local Admins group. But we don't know if this session is elevated.
+    ```
+
+    **PowerShell — using gsudo:**
+
+    ```powershell
+    $IsAdminMember = 'true' -eq (gsudo status IsAdminMember)
+    ```
+
+    **PowerShell — native method:**
+
+    ```powershell
+    function Test-IsMemberOfLocalAdminsGroup {
+      ([System.Security.Principal.WindowsIdentity]::GetCurrent()).Claims.Value -contains "S-1-5-32-544"
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Windows Terminal: mixed elevation
+
+Windows Terminal supports multiple tabs and profiles in a single window. gsudo gives you two options for mixing elevated and non-elevated sessions.
+
+<AccordionGroup>
+  <Accordion title="Add a permanently elevated profile">
+    You can create a Windows Terminal profile that always launches elevated. Edit your Windows Terminal settings and add a new profile with gsudo prepended to the shell command:
+
+    ```json
+    {
+      "name": "PowerShell (Admin)",
+      "commandline": "gsudo pwsh"
+    }
+    ```
+
+    Or for CMD:
+
+    ```json
+    {
+      "name": "CMD (Admin)",
+      "commandline": "gsudo cmd"
+    }
+    ```
+
+    Opening that profile will trigger a UAC prompt and start an elevated shell in a new tab.
+  </Accordion>
+
+  <Accordion title="Elevate on demand in the same tab">
+    Rather than maintaining a dedicated elevated profile, you can elevate individual commands or your current shell on demand using gsudo in any tab:
+
+    ```powershell
+    # Elevate a single command
+    gsudo notepad C:\Windows\System32\drivers\etc\hosts
+
+    # Elevate the current shell session
+    gsudo
+    ```
+
+    This approach avoids running an entire session as admin when you only need elevation for specific commands.
+  </Accordion>
+</AccordionGroup>

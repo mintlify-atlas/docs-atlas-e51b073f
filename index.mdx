@@ -1,97 +1,96 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "gsudo — sudo for Windows with UAC and shell support"
+description: "gsudo brings the Unix sudo experience to Windows — elevate commands in your current console with UAC integration, credentials caching, and full shell support."
 ---
 
-## Setting up
+gsudo is a `sudo` equivalent for Windows that lets you run any command with elevated (admin) permissions directly in your current console window — no new window, no context-switching. Just prepend `gsudo` (or the built-in `sudo` alias) to any command and it runs elevated. Works with CMD, PowerShell, WSL, Git-Bash, and more.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Get started" icon="rocket" href="/introduction">
+    Learn what gsudo is and how it works in under 5 minutes.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Installation" icon="download" href="/installation">
+    Install via WinGet, Chocolatey, Scoop, or MSI installer.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Usage guide" icon="terminal" href="/usage/overview">
+    Full command reference with flags, options, and examples.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="PowerShell support" icon="window" href="/usage/powershell">
+    Use ScriptBlock syntax and the Invoke-Gsudo function in PowerShell.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Why gsudo?
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="Same-window elevation" icon="layer-group">
+    Elevated commands run in your existing console — colors, keyboard input, and autocomplete all work natively.
+  </Card>
+  <Card title="Credentials cache" icon="bolt">
+    Enable cache mode to get only one UAC popup for multiple elevations. Auto, Explicit, or Disabled modes available.
+  </Card>
+  <Card title="Any shell, any command" icon="code-branch">
+    Supports CMD, PowerShell, WSL, Git-Bash, MinGW, Cygwin, NuShell, Yori, and Take Command.
+  </Card>
+  <Card title="Script-friendly" icon="scroll">
+    Captures stdout/stderr, forwards exit codes, and works safely when already elevated — no extra logic needed.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Get up and running
 
-## Need inspiration?
+<Steps>
+  <Step title="Install gsudo">
+    Choose your preferred package manager:
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+    ```powershell
+    winget install gerardog.gsudo
+    # or
+    choco install gsudo
+    # or
+    scoop install gsudo
+    ```
+
+    Restart your terminal after installation to refresh `PATH`.
+  </Step>
+  <Step title="Run your first elevated command">
+    Prepend `gsudo` (or `sudo`) to any command:
+
+    ```powershell
+    gsudo notepad C:\Windows\System32\drivers\etc\hosts
+    ```
+
+    A UAC prompt will appear. After you approve, the command runs elevated in the same window.
+  </Step>
+  <Step title="Reduce UAC popups with cache">
+    Enable Auto cache mode to behave like Unix sudo — one prompt, then elevated for 5 minutes:
+
+    ```powershell
+    gsudo config CacheMode Auto
+    ```
+  </Step>
+  <Step title="Configure your shell (optional)">
+    For PowerShell users, import the gsudo module for tab completion and `gsudo !!` support:
+
+    ```powershell
+    Write-Output "`nImport-Module `"gsudoModule`"" | Add-Content $PROFILE
+    ```
+  </Step>
+</Steps>
+
+## Explore the docs
+
+<CardGroup cols={2}>
+  <Card title="Credentials cache" icon="shield-halved" href="/credentials-cache">
+    Reduce UAC interruptions with configurable cache modes.
+  </Card>
+  <Card title="Configuration reference" icon="sliders" href="/configuration">
+    All settings available via `gsudo config`, with descriptions and defaults.
+  </Card>
+  <Card title="Security considerations" icon="lock" href="/security">
+    Understand the security model and trade-offs before enabling advanced features.
+  </Card>
+  <Card title="gsudo vs Microsoft sudo" icon="scale-balanced" href="/gsudo-vs-sudo">
+    Side-by-side feature comparison with the built-in Windows sudo tool.
+  </Card>
+</CardGroup>
